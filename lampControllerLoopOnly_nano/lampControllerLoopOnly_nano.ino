@@ -87,9 +87,10 @@ unsigned char const _ldu_map[64]= {
 
 
 enum recvstate {
-  LampID = 1,
+  ACK = 1,
+  LampID,
   ControlID,
-  EOL
+  Command
 };
 
 
@@ -99,7 +100,7 @@ boolean ack = false;
 void setup() {                
   // initialize the digital pin as an output.
   pinMode(led, OUTPUT);     
-  Serial.begin(57600); // start serial for output. Should only have this if debugging
+  Serial.begin(38400); // start serial for output. Should only have this if debugging
   _lastLamp = 0;
 
   SetLampAll(0);
@@ -355,11 +356,55 @@ void serialEvent() {
   static bool completed = false;
   
   while (Serial.available()) {
-    received = true;
+
+    //Lamp 0 is our ack now.(Enable 1 / Data 0000), as no light is controlled by this
+    //So Top 6 bits = Lamp ID, bottom 2 bits = what to do.
+    //0000 00 00 = ack
+    //0000 00 01 = all off
+    //0000 00 10 = all on
+    //0000 00 11 = ? 
+    
+
+    
+ ////   received = true;
     //_receiveState
      
     char inChar = Serial.read(); 
 
+    if(inChar==0x00){
+      ack=true;
+      _receiveState=ACK;
+    }else{
+      switch(_receiveState){
+          case ACK: //we had the ack, this is the LampID
+            _receiveState = LampID;
+            lampID =(byte)inChar - 1; //converting to zero base
+            break;
+          case LampID:
+            if(inChar<5){ //doing this so if we have bad data, we skip and wait for the next ack
+              _receiveState = ControlID;
+              lampCommand = (byte)inChar - 1; //converting to zero base
+  
+              //go ahead and process the values
+              if(lampID==0x00){
+                SetLampAll(lampCommand);
+              }else{
+                _lastLamp = lampID;
+                _lightControl[lampID] = lampCommand;
+              }
+            }
+            break;
+            //invalid. We need an ack.
+        }  
+    }
+
+    //for the auto detecting
+    if(inChar=='|'){
+      ack=true;
+    }
+
+
+  /*
     switch(inChar){
       case '{':
         _receiveState = LampID; //reset back to waiting for the LampID              
@@ -401,10 +446,10 @@ void serialEvent() {
     }
 
     _keepAlive=0; //reset keepAlive since we got something
-    
+    */
   }
   
-  
+  /*
     if(received){
       if(completed){
         boolean skip = false;
@@ -468,6 +513,7 @@ void serialEvent() {
         }
       }
     }
+    */
     
 
 }
@@ -485,21 +531,21 @@ void serialEvent() {
  8 = Addr 1
  9 = Addr 2
  
- Low PortB (Active High):
- 0=lamp Address 0
- 1=lamp Address 1
- 2=lamp Address 2
- 3=lamp Address 3
+ Low PortD (Active High)
+ 4=lamp Address 0 
+ 5=lamp Address 1
+ 6=lamp Address 2
+ 7=lamp Address 3
  
- Low PortC (Active low):
+ Low PortB (Active low):
  0=str (Lamp En) 0
  1=str (Lamp En) 1
  2=str (Lamp En) 2
  3=str (Lamp En) 3
  
  LDU logic:
- 4 Enables (Active Low) - port C
- 4-Bit Data (Active High) - port B
+ 4 Enables (Active Low) - port B
+ 4-Bit Data (Active High) - port D
  
  Example for Strobe 0, Lamp 5: 
  PortC = 0x#E
@@ -510,15 +556,21 @@ void serialEvent() {
 void turnOnLamp(int lampID){
   unsigned char newValue;
 
+  PORTB |= 0x0f; //turn off the inhibits so that we can load the data
+
+  //set the data
+  newValue = PORTD | 0xf0;  //reset low byte to all 1111####
+  newValue = newValue & (_ldu_map[lampID]<<4 | 0x0f); //example for 0xE0, this would be 0x0f AND-ing with. so new value would be 0000####
+  PORTD = newValue;
+
+
+  //now set the correct enable
   //0xE0
   newValue =  PORTB | 0x0f; //reset low byte to all ####1111
   
   newValue = newValue & ((_ldu_map[lampID]>>4) | 0xf0); //example for 0xE0, this would be 0xfe AND-ing with. so new value should be ####1110
   PORTB = newValue;
 
-  newValue = PORTD | 0xf0;  //reset low byte to all 1111####
-  newValue = newValue & (_ldu_map[lampID]<<4 | 0x0f); //example for 0xE0, this would be 0x0f AND-ing with. so new value would be 0000####
-  PORTD = newValue;
 }
 
 void turnOnLED(){

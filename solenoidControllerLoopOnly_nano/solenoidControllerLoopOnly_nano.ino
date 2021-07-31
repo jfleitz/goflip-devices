@@ -125,7 +125,7 @@ boolean ack = false;
 void setup() {                
   // initialize the digital pin as an output.
   pinMode(led, OUTPUT);     
-  Serial.begin(57600); // start serial for output. Should only have this if debugging
+  Serial.begin(38400); // start serial for output. Should only have this if debugging
 
   decrement = false;
   SetSolAll(0);
@@ -328,8 +328,8 @@ void directSols(byte solID, byte cmd){
     Serial.println(solID,DEC);
     Serial.println(cmd,DEC);
     Serial.println("----");
-    {
-    z
+    
+    
     
   #endif
   if(cmd>0){

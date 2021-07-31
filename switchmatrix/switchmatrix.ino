@@ -40,7 +40,7 @@ boolean refresh = false; //sends the status of all switches that are down;
 boolean ack = false;
 
 void setup(){
-  Serial.begin(57600);
+  Serial.begin(38400);
   pinMode(ledPin,OUTPUT);
   inputString.reserve(200);
   
